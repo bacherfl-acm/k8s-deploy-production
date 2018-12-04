@@ -31,6 +31,7 @@ pipeline {
             }
             steps {
                 container('kubectl') {
+                    // copy original service description to a temporary one.
                     sh "cp ${env.SERVICE}.yml ${env.SERVICE}-${env.VERSION}.yml"
                     // update images
                     sh "sed -i \"s#image: .*#image: `kubectl -n staging get deployment -o jsonpath='{.items[*].spec.template.spec.containers[0].image}' --field-selector=metadata.name=${env.SERVICE}`#\" ${env.SERVICE}-${env.VERSION}.yml"
@@ -50,26 +51,16 @@ pipeline {
             }
             steps {
                 container('kubectl') {
-                    sh "cat ${env.SERVICE}-${env.VERSION}.yml"
+                    // sh "cat ${env.SERVICE}-${env.VERSION}.yml"
                     sh "kubectl apply -f ${env.SERVICE}-${env.VERSION}.yml"
                 }
             }
         }
         stage('DT Deploy Event') {
             steps {
-                createDynatraceDeploymentEvent(
-                envId: 'Dynatrace Tenant',
-                tagMatchRules: [
-                    [
-                    meTypes: [
-                        [meType: 'SERVICE']
-                    ],
-                    tags: [
-                        [context: 'CONTEXTLESS', key: 'app', value: "${env.SERVICE}"],
-                        [context: 'CONTEXTLESS', key: 'environment', value: 'production']
-                    ]
-                    ]
-                ]) {
+                container("curl") {
+                  // send custom deployment event to Dynatrace
+                  sh "curl -X POST \"$DT_TENANT_URL/api/v1/events?Api-Token=$DT_API_TOKEN\" -H \"accept: application/json\" -H \"Content-Type: application/json\" -d \"{ \\\"eventType\\\": \\\"CUSTOM_DEPLOYMENT\\\", \\\"attachRules\\\": { \\\"tagRule\\\" : [{ \\\"meTypes\\\" : [\\\"SERVICE\\\"], \\\"tags\\\" : [ { \\\"context\\\" : \\\"CONTEXTLESS\\\", \\\"key\\\" : \\\"app\\\", \\\"value\\\" : \\\"${env.SERVICE}\\\" }, { \\\"context\\\" : \\\"CONTEXTLESS\\\", \\\"key\\\" : \\\"environment\\\", \\\"value\\\" : \\\"production\\\" } ] }] }, \\\"deploymentName\\\":\\\"${env.JOB_NAME}\\\", \\\"deploymentVersion\\\":\\\"${env.VERSION}\\\", \\\"deploymentProject\\\":\\\"\\\", \\\"ciBackLink\\\":\\\"${env.BUILD_URL}\\\", \\\"source\\\":\\\"Jenkins\\\", \\\"customProperties\\\": { \\\"Jenkins Build Number\\\": \\\"${env.BUILD_ID}\\\",  \\\"Git commit\\\": \\\"${env.GIT_COMMIT}\\\" } }\" "
                 }
             }
         }
