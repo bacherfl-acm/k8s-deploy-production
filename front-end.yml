@@ -22,6 +22,8 @@ spec:
           value: "product=sockshop"
         - name: DT_CUSTOM_PROP
           value: "SERVICE_TYPE=FRONTEND"
+        - name: DT_CLUSTER_ID
+          value: "front-end.production"
         resources:
           limits:
             cpu: 600m
